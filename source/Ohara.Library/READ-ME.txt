@@ -1,0 +1,85 @@
+.cshtml View
+---------------------------------------
+
+1. Add HtmlKit() object to page
+		- HtmlKit htmlKit = new HtmlKit();
+
+2. Add format tag to lines you want to  add edit inputs to 
+	- format: (item) => Html.Raw(htmlKit.GetInlineEditElements({elementIdentifier}, {elementValue}, {elementName (only applicable to drop downs)}, { HtmlElementType }))
+	- HtmlElementType Enum
+		- Text
+		- Number
+		- Date
+		- Checkbox 
+		- DropDown (elementName is required)
+
+3. Add Inline edit button to grid: 
+	- grid.Column("Edit", "Edit", format: (item) => Model.IsEditAllowed ? @ButtonHelpersCore.LinkButtonForSubmit(null, "", "onEditInlineClick(this)", {elementId}, "grid - button", true, "edit.png", this.Context.Request) : "", canSort: false, style: "select - column - style - cannot - sort")
+
+4. Disable button postback.
+
+5. Add javascript function to call ohara.js "OnEditRowClick()"
+
+    		    function onInlineEditClick(element) {
+        				let postBackUrl = "@Url.Action({ControllerMethod}, {ControllerName})";
+        				onEditRowClick(element, postBackUrl);
+	    			}
+
+
+
+** N.B (Only applicable to dropdowns)
+
+6. When adding a dropdown edit a list of values will be required, a viewbag or alternative select list (List<SelectListItem>) will need to be pulled from the controller related to the page 
+	a. Add the following to the document ready javascript call
+		let ddlList = @Html.Raw(Json.Serialize(ViewBag.{ListFromController}));
+		setInlineEditDropDown("{elementName}", ddlList);
+
+
+
+------------------------------------------------------------------------------------
+.cs Controller
+------------------------------------------------------------------------------------
+	
+1. Add UpdateByHtml methods, the method has to return an ActionResult
+2. Add replacementDictionary to replace the table name properties with object property name e.g. ("Phone","Phone Number")
+	- Dictionary<string,string>
+		- Key = header text
+		- Value =  replacement property name
+3. Add enumReplacementKeys to assign enums to properties
+	- Dictionary<string,object>
+		- Key = property name
+		- Value = Enum data type
+4. Get existing record
+5. Call GetObjectFromHtml method from HtmlKit to get object from table
+
+
+Method example:
+
+
+	[HttpPost]
+	public ActionResult UpdateUserByHtml([FromBody] HtmlTableLine input)
+	{
+	    try
+	    {
+	        Dictionary<string, string> replacementDictionary = new Dictionary<string, string>() {
+	            { "Email", "EmailAddress"},
+	            { "Phone", "PhoneNumber"}
+	        };
+	
+	        Dictionary<string, Type> enumRelatedProperties = new Dictionary<string, Type>()
+	        {
+	            { "RoleId", typeof(UserRole)}
+	        };
+	
+	        HtmlKit htmlKit = new HtmlKit();
+	        User currentUser = DbContext.GetUser(input.Id, throwExceptionOnNotFound: true);
+	        User newUser = htmlKit.GetObjectFromHtml<User>(input, replacementDictionary, enumRelatedProperties, currentUser);
+	        LogUserActions(DbContext.Save<User>(newUser, newUser.UserId));
+	    }
+	    catch (Exception ex)
+	    {
+	        return HandleException(ex);
+	    }
+	
+	    return GetJsonResult(true);
+	}
